@@ -131,6 +131,34 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     await app.close();
   });
 
+  it('GET /repos/:id/pulls: cost_usd = SUM of the PR runs, null when none priced', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const repoId = (await app.inject({ method: 'GET', url: '/repos' })).json()[0]!.id;
+    const listPr = async () =>
+      (await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` })).json()[0]!;
+    const pr = await listPr();
+    const [repo] = await pg.handle.db.select().from(t.repos).where(eq(t.repos.id, repoId));
+    const runs = (costUsd: number | null, status = 'done') => ({
+      workspaceId: repo!.workspaceId,
+      prId: pr.id,
+      status,
+      costUsd,
+    });
+
+    // Only an un-priced (failed) run → null, never 0.
+    await pg.handle.db.insert(t.agentRuns).values(runs(null, 'failed'));
+    expect((await listPr()).cost_usd).toBeNull();
+
+    await pg.handle.db.insert(t.agentRuns).values([runs(0.001), runs(0.002)]);
+    expect((await listPr()).cost_usd).toBeCloseTo(0.003, 6);
+    await app.close();
+  });
+
   it('POST /repos/:id/poll syncs PR list and does NOT trigger a review', async () => {
     const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
     const app = await buildApp({
