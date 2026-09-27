@@ -1,0 +1,22 @@
+# Insights — server
+
+Non-obvious findings and gotchas. Add an entry whenever something surprised you,
+so the next agent/session doesn't relearn it.
+
+## What Works
+
+## What Doesn't Work
+- **2026-09-27** — Migrating a fresh DB with anything other than `runMigrations()` (e.g. `drizzle-kit migrate`, a hand-rolled migrator) fails with `type "vector" does not exist`: pgvector is NOT in migration 0000. `runMigrations()` runs `CREATE EXTENSION IF NOT EXISTS vector` outside the journal. The comments in `drizzle.config.ts` and `server/README.md` saying "enabled by migration 0000" are wrong. Evidence: `src/db/migrate.ts` (`runMigrations`), `src/db/migrations/0000_init.sql:75`.
+- **2026-09-27** — `pnpm db:migrate` exits 0 and does nothing (no "✓ migrations applied" line) when the checkout path contains a space: the CLI guard compares `import.meta.url` (percent-encoded, `a%20b`) against `` `file://${process.argv[1]}` `` (raw `a b`). Fix by comparing against `pathToFileURL(process.argv[1]).href`. Evidence: `src/db/migrate.ts` (CLI entrypoint block), reproduced with plain `node`.
+
+## Codebase Patterns
+
+## Tool & Library Notes
+- **2026-09-27** — drizzle's migrator (0.38) reads only the newest `created_at` from `drizzle.__drizzle_migrations` and applies journal entries whose `when` is later, all in one transaction. A migration merged in from another branch with an older `when` than one already applied is silently skipped, so regenerate it on top of main with `pnpm db:generate` rather than cherry-picking the SQL. Evidence: `src/db/migrations/meta/_journal.json` (`when`), drizzle-orm `src/pg-core/dialect.ts` `migrate()`.
+
+## Recurring Errors & Fixes
+
+## Session Notes
+
+## Open Questions
+- **2026-09-27** — Should `CREATE EXTENSION IF NOT EXISTS vector` move into a real custom migration (`drizzle-kit generate --custom`) so every migrator works on a fresh DB, and the stale "migration 0000" comments get fixed? Left untouched because `migrations/` is do-not-touch without coordination. Evidence: `src/db/migrate.ts`, root `CLAUDE.md` Do-not-touch.
