@@ -10,11 +10,15 @@ so the next agent/session doesn't relearn it.
 - **2026-09-27** — `pnpm db:migrate` exits 0 and does nothing (no "✓ migrations applied" line) when the checkout path contains a space: the CLI guard compares `import.meta.url` (percent-encoded, `a%20b`) against `` `file://${process.argv[1]}` `` (raw `a b`). Fix by comparing against `pathToFileURL(process.argv[1]).href`. Evidence: `src/db/migrate.ts` (CLI entrypoint block), reproduced with plain `node`.
 
 ## Codebase Patterns
+- **2026-09-27** — `GET /runs/:id/trace` returns the stored `run_traces.trace` jsonb as-is (no Zod parse on read), so a field added to `RunStats` is simply absent on traces written before it. Declare it `.nullish()`, not `.nullable()`, and render `undefined` the same as `null`. Evidence: `src/modules/reviews/routes.ts` (`getRunTrace`), `src/vendor/shared/contracts/trace.ts` (`RunStats.cost_usd`).
+- **2026-09-27** — The PR list COST is `SUM(agent_runs.cost_usd)` over all of the PR's runs, not "latest review batch" as in the course answer key (`upstream/lesson-1-lab/run-cost`). There is no batch id, and the answer key's 120 s window is a guess, while the SUM is exact and needs no extra code for nulls. Evidence: `src/modules/pulls/routes.ts` (`costByPr`), `specs/run-cost.md`.
 
 ## Tool & Library Notes
 - **2026-09-27** — drizzle's migrator (0.38) reads only the newest `created_at` from `drizzle.__drizzle_migrations` and applies journal entries whose `when` is later, all in one transaction. A migration merged in from another branch with an older `when` than one already applied is silently skipped, so regenerate it on top of main with `pnpm db:generate` rather than cherry-picking the SQL. Evidence: `src/db/migrations/meta/_journal.json` (`when`), drizzle-orm `src/pg-core/dialect.ts` `migrate()`.
+- **2026-09-27** — drizzle `sum()` comes back as a string (Postgres `numeric`), so wrap it in `.mapWith(Number)`. SQL NULL skips the decoder, so an all-null group stays `null` and doesn't become `0`. Evidence: `src/modules/pulls/routes.ts` (`costByPr`), drizzle-orm `utils.js` `mapResultRow`.
 
 ## Recurring Errors & Fixes
+- **2026-09-27** — `TypeError: Cannot read properties of undefined (reading 'id')` in an integration test that reads `pulls[1]`: `MockGitHubClient.listPullRequests` returns only PR #482. Build multi-state cases on that one PR in sequence, or pass `pulls` to the mock. Evidence: `src/adapters/mocks.ts` (`listPullRequests`), `test/integration.it.test.ts` (cost_usd case).
 
 ## Session Notes
 

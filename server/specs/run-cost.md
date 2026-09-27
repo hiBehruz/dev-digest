@@ -1,6 +1,6 @@
 # Spec — Run cost (USD) on review surfaces
 
-Status: planned · Owner: lesson-1 lab · Touches: `server`, `client`, shared contracts
+Status: implemented (615bd9b) · Owner: lesson-1 lab · Touches: `server`, `client`, shared contracts
 
 ## Goal
 
